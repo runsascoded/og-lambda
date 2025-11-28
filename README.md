@@ -92,6 +92,14 @@ EventBridge (hourly) → Lambda → Puppeteer/Chrome → S3 bucket
                         Your site ← og:image URL ← Public URL
 ```
 
+## Examples
+
+- [awair.runsascoded.com][awair] – Hourly screenshots of air quality charts with Plotly.js, using `waitForFunction` to wait for chart rendering ([config][awair-config], [og:image][awair-og])
+
+[awair]: https://awair.runsascoded.com
+[awair-config]: https://github.com/runsascoded/awair/blob/main/.og-lambda.json
+[awair-og]: https://380nwk.s3.amazonaws.com/awair/og-image.jpg
+
 ## Development
 
 ```bash
