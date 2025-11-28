@@ -30,15 +30,20 @@ pnpm deploy     # Deploy to AWS
 - `puppeteer-core` - Browser automation
 - `aws-cdk-lib` - Infrastructure as code
 
-## Environment Variables
+## Configuration
 
-Required for deployment:
-- `SCREENSHOT_URL` - URL to screenshot
-- `S3_BUCKET` - Output bucket
+The CLI supports `.og-lambda.json` or `og-lambda.config.json` config files (walks up directories like `.gitignore`).
 
-Optional:
-- `S3_KEY` - Output path (default: `og-image.jpg`)
-- `STACK_NAME` - CloudFormation stack name
-- `VIEWPORT_WIDTH` / `VIEWPORT_HEIGHT` - Screenshot dimensions
-- `WAIT_FOR_SELECTOR` / `WAIT_FOR_FUNCTION` / `WAIT_FOR_TIMEOUT` - Wait conditions
-- `TIMEZONE` - Timezone for page rendering
+Example config:
+```json
+{
+  "stackName": "myproject-og",
+  "screenshotUrl": "https://mysite.com",
+  "s3Bucket": "my-bucket",
+  "s3Key": "og-image.jpg",
+  "waitForSelector": ".js-plotly-plot",
+  "waitForFunction": "window.chartReady"
+}
+```
+
+Environment variables override config file values. See `og-lambda config` for resolved values.

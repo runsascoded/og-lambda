@@ -10,35 +10,52 @@ pnpm add @rdub/og-lambda
 
 ## Usage
 
-### As a standalone Lambda
+### Config file
 
-Deploy using CDK with environment variables:
+Create `.og-lambda.json` in your project:
 
-```bash
-export SCREENSHOT_URL="https://your-site.com"
-export S3_BUCKET="your-bucket"
-export S3_KEY="og-image.jpg"
-export STACK_NAME="your-site-og"
-
-pnpm deploy
+```json
+{
+  "stackName": "myproject-og",
+  "screenshotUrl": "https://mysite.com",
+  "s3Bucket": "my-bucket",
+  "s3Key": "og-image.jpg"
+}
 ```
 
-### Configuration
+Then deploy:
 
-| Environment Variable | Required | Default | Description |
-|---------------------|----------|---------|-------------|
-| `SCREENSHOT_URL` | Yes | - | URL to screenshot |
-| `S3_BUCKET` | Yes | - | S3 bucket for output |
-| `S3_KEY` | No | `og-image.jpg` | S3 key (path) for output |
-| `STACK_NAME` | No | `og-lambda` | CloudFormation stack name |
-| `VIEWPORT_WIDTH` | No | `1200` | Screenshot width |
-| `VIEWPORT_HEIGHT` | No | `630` | Screenshot height |
-| `WAIT_FOR_SELECTOR` | No | - | CSS selector to wait for |
-| `WAIT_FOR_TIMEOUT` | No | - | Extra ms to wait after load |
-| `SCREENSHOT_QUALITY` | No | `90` | JPEG quality (0-100) |
-| `SCHEDULE_RATE_MINUTES` | No | `60` | How often to run |
-| `LAMBDA_MEMORY` | No | `2048` | Lambda memory in MB |
-| `LAMBDA_TIMEOUT_MINUTES` | No | `2` | Lambda timeout |
+```bash
+og-lambda deploy
+og-lambda status
+og-lambda config   # Show resolved configuration
+```
+
+Environment variables override config file values.
+
+### Configuration options
+
+| Config key | Env var | Default | Description |
+|------------|---------|---------|-------------|
+| `screenshotUrl` | `SCREENSHOT_URL` | (required) | URL to screenshot |
+| `s3Bucket` | `S3_BUCKET` | (required) | S3 bucket for output |
+| `s3Key` | `S3_KEY` | `og-image.jpg` | S3 key (path) for output |
+| `stackName` | `STACK_NAME` | `og-lambda` | CloudFormation stack name |
+| `viewportWidth` | `VIEWPORT_WIDTH` | `1200` | Screenshot width |
+| `viewportHeight` | `VIEWPORT_HEIGHT` | `630` | Screenshot height |
+| `waitForSelector` | `WAIT_FOR_SELECTOR` | - | CSS selector to wait for |
+| `waitForFunction` | `WAIT_FOR_FUNCTION` | - | JS expression that must return truthy |
+| `waitForTimeout` | `WAIT_FOR_TIMEOUT` | - | Extra ms to wait after load |
+| `quality` | `SCREENSHOT_QUALITY` | `90` | JPEG quality (0-100) |
+| `scheduleRateMinutes` | `SCHEDULE_RATE_MINUTES` | `60` | How often to run |
+| `timezone` | `TIMEZONE` | - | Timezone for page rendering |
+
+CDK-only options (env vars):
+
+| Env var | Default | Description |
+|---------|---------|-------------|
+| `LAMBDA_MEMORY` | `2048` | Lambda memory in MB |
+| `LAMBDA_TIMEOUT_MINUTES` | `2` | Lambda timeout |
 
 ### Using the screenshot function directly
 

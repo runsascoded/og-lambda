@@ -1,11 +1,63 @@
 #!/usr/bin/env node
 import { execSync, spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join, parse } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const projectRoot = join(__dirname, '..')
+
+// Config file support
+interface OgLambdaConfig {
+  stackName?: string
+  screenshotUrl?: string
+  s3Bucket?: string
+  s3Key?: string
+  viewportWidth?: number
+  viewportHeight?: number
+  waitForSelector?: string
+  waitForFunction?: string
+  waitForTimeout?: number
+  scheduleRateMinutes?: number
+  timezone?: string
+}
+
+const CONFIG_FILENAMES = ['.og-lambda.json', 'og-lambda.config.json']
+
+function findConfigFile(startDir: string): string | null {
+  let dir = startDir
+  const { root } = parse(dir)
+
+  while (dir !== root) {
+    for (const filename of CONFIG_FILENAMES) {
+      const configPath = join(dir, filename)
+      if (existsSync(configPath)) {
+        return configPath
+      }
+    }
+    dir = dirname(dir)
+  }
+  return null
+}
+
+let configPath: string | null = null
+let config: OgLambdaConfig = {}
+
+function loadConfig(): void {
+  configPath = findConfigFile(process.cwd())
+  if (!configPath) return
+
+  try {
+    const content = readFileSync(configPath, 'utf-8')
+    config = JSON.parse(content)
+  } catch (e) {
+    console.error(`Warning: Failed to parse config file ${configPath}`)
+    config = {}
+  }
+}
+
+// Load config on startup
+loadConfig()
 
 function usage() {
   console.log(`
@@ -14,43 +66,86 @@ og-lambda - Scheduled Lambda for generating og:image screenshots
 Usage: og-lambda <command> [options]
 
 Commands:
+  config     Show resolved configuration
   deploy     Deploy the Lambda stack
   destroy    Destroy the Lambda stack
-  synth      Synthesize CloudFormation template
   invoke     Manually invoke the Lambda
   logs       Tail Lambda logs
   status     Show Lambda status
+  synth      Synthesize CloudFormation template
 
-Environment Variables:
-  SCREENSHOT_URL       URL to screenshot (required for deploy)
-  S3_BUCKET            S3 bucket for output (required for deploy)
-  S3_KEY               S3 key/path (default: og-image.jpg)
-  STACK_NAME           CloudFormation stack name (default: og-lambda)
-  VIEWPORT_WIDTH       Screenshot width (default: 1200)
-  VIEWPORT_HEIGHT      Screenshot height (default: 630)
-  WAIT_FOR_SELECTOR    CSS selector to wait for before screenshot
-  WAIT_FOR_FUNCTION    JS expression that must return truthy (e.g., "window.chartReady")
-  WAIT_FOR_TIMEOUT     Additional ms to wait after conditions are met
-  SCHEDULE_RATE_MINUTES  How often to run (default: 60)
+Config File:
+  Create .og-lambda.json or og-lambda.config.json in your project:
+
+  {
+    "stackName": "myproject-og",
+    "screenshotUrl": "https://mysite.com",
+    "s3Bucket": "my-bucket",
+    "s3Key": "og-image.jpg"
+  }
+
+  Environment variables override config file values.
+
+Config Keys / Environment Variables:
+  stackName / STACK_NAME              CloudFormation stack name (default: og-lambda)
+  screenshotUrl / SCREENSHOT_URL      URL to screenshot (required for deploy)
+  s3Bucket / S3_BUCKET                S3 bucket for output (required for deploy)
+  s3Key / S3_KEY                      S3 key/path (default: og-image.jpg)
+  viewportWidth / VIEWPORT_WIDTH      Screenshot width (default: 1200)
+  viewportHeight / VIEWPORT_HEIGHT    Screenshot height (default: 630)
+  waitForSelector / WAIT_FOR_SELECTOR CSS selector to wait for before screenshot
+  waitForFunction / WAIT_FOR_FUNCTION JS expression that must return truthy
+  waitForTimeout / WAIT_FOR_TIMEOUT   Additional ms to wait after conditions are met
+  scheduleRateMinutes / SCHEDULE_RATE_MINUTES  How often to run (default: 60)
+  timezone / TIMEZONE                 Timezone for page rendering
 
 Examples:
-  SCREENSHOT_URL=https://mysite.com S3_BUCKET=mybucket og-lambda deploy
-  og-lambda logs
-  og-lambda invoke
+  og-lambda deploy              # Uses config file
+  og-lambda status
+  STACK_NAME=other og-lambda status   # Override config
 `)
 }
 
-function requireEnv(name: string): string {
-  const value = process.env[name]
+// Map of env var names to config keys
+const ENV_TO_CONFIG: Record<string, keyof OgLambdaConfig> = {
+  STACK_NAME: 'stackName',
+  SCREENSHOT_URL: 'screenshotUrl',
+  S3_BUCKET: 's3Bucket',
+  S3_KEY: 's3Key',
+  VIEWPORT_WIDTH: 'viewportWidth',
+  VIEWPORT_HEIGHT: 'viewportHeight',
+  WAIT_FOR_SELECTOR: 'waitForSelector',
+  WAIT_FOR_FUNCTION: 'waitForFunction',
+  WAIT_FOR_TIMEOUT: 'waitForTimeout',
+  SCHEDULE_RATE_MINUTES: 'scheduleRateMinutes',
+  TIMEZONE: 'timezone',
+}
+
+function getConfigValue(envName: string): string | undefined {
+  const configKey = ENV_TO_CONFIG[envName]
+  const envValue = process.env[envName]
+  if (envValue) return envValue
+  if (configKey && config[configKey] !== undefined) {
+    return String(config[configKey])
+  }
+  return undefined
+}
+
+function requireConfig(envName: string): string {
+  const value = getConfigValue(envName)
+  const configKey = ENV_TO_CONFIG[envName]
   if (!value) {
-    console.error(`Error: ${name} environment variable is required`)
+    const msg = configKey
+      ? `Error: Set ${envName} env var or '${configKey}' in config file`
+      : `Error: ${envName} environment variable is required`
+    console.error(msg)
     process.exit(1)
   }
   return value
 }
 
 function getStackName(): string {
-  return process.env.STACK_NAME || 'og-lambda'
+  return getConfigValue('STACK_NAME') || 'og-lambda'
 }
 
 function ensureBuilt() {
@@ -62,15 +157,24 @@ function ensureBuilt() {
 }
 
 function deploy() {
-  requireEnv('SCREENSHOT_URL')
-  requireEnv('S3_BUCKET')
+  requireConfig('SCREENSHOT_URL')
+  requireConfig('S3_BUCKET')
   ensureBuilt()
+
+  // Pass config values as env vars to CDK
+  const env = { ...process.env }
+  for (const [envName, configKey] of Object.entries(ENV_TO_CONFIG)) {
+    const value = getConfigValue(envName)
+    if (value && !process.env[envName]) {
+      env[envName] = value
+    }
+  }
 
   console.log('Deploying og-lambda...')
   const result = spawnSync('cdk', ['deploy', '--require-approval', 'never'], {
     cwd: projectRoot,
     stdio: 'inherit',
-    env: process.env,
+    env,
   })
   process.exit(result.status ?? 1)
 }
@@ -87,14 +191,23 @@ function destroy() {
 }
 
 function synth() {
-  requireEnv('SCREENSHOT_URL')
-  requireEnv('S3_BUCKET')
+  requireConfig('SCREENSHOT_URL')
+  requireConfig('S3_BUCKET')
   ensureBuilt()
+
+  // Pass config values as env vars to CDK
+  const env = { ...process.env }
+  for (const [envName] of Object.entries(ENV_TO_CONFIG)) {
+    const value = getConfigValue(envName)
+    if (value && !process.env[envName]) {
+      env[envName] = value
+    }
+  }
 
   const result = spawnSync('cdk', ['synth'], {
     cwd: projectRoot,
     stdio: 'inherit',
-    env: process.env,
+    env,
   })
   process.exit(result.status ?? 1)
 }
@@ -132,7 +245,54 @@ function logs() {
   process.exit(result.status ?? 1)
 }
 
+function showConfig() {
+  if (configPath) {
+    console.log(`Config file: ${configPath}\n`)
+  } else {
+    console.log('Config file: (none found)\n')
+  }
+
+  const defaults: Record<string, string> = {
+    STACK_NAME: 'og-lambda',
+    S3_KEY: 'og-image.jpg',
+    VIEWPORT_WIDTH: '1200',
+    VIEWPORT_HEIGHT: '630',
+    SCHEDULE_RATE_MINUTES: '60',
+  }
+
+  console.log('Resolved configuration:')
+  for (const [envName, configKey] of Object.entries(ENV_TO_CONFIG)) {
+    const envValue = process.env[envName]
+    const cfgValue = config[configKey]
+    const defaultValue = defaults[envName]
+
+    let value: string | undefined
+    let source: string
+
+    if (envValue) {
+      value = envValue
+      source = 'env'
+    } else if (cfgValue !== undefined) {
+      value = String(cfgValue)
+      source = 'config'
+    } else if (defaultValue) {
+      value = defaultValue
+      source = 'default'
+    } else {
+      value = undefined
+      source = ''
+    }
+
+    if (value !== undefined) {
+      console.log(`  ${configKey}: ${value} (${source})`)
+    }
+  }
+}
+
 function status() {
+  if (configPath) {
+    console.log(`Config: ${configPath}`)
+  }
   const stackName = getStackName()
 
   console.log(`Stack: ${stackName}\n`)
@@ -185,14 +345,14 @@ function status() {
 const command = process.argv[2]
 
 switch (command) {
+  case 'config':
+    showConfig()
+    break
   case 'deploy':
     deploy()
     break
   case 'destroy':
     destroy()
-    break
-  case 'synth':
-    synth()
     break
   case 'invoke':
     invoke()
@@ -202,6 +362,9 @@ switch (command) {
     break
   case 'status':
     status()
+    break
+  case 'synth':
+    synth()
     break
   case '-h':
   case '--help':
