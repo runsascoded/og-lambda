@@ -1,0 +1,48 @@
+{
+  "name": "@rdub/og-lambda",
+  "version": "0.1.0",
+  "description": "Scheduled Lambda for generating og:image screenshots",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "og-lambda": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc && tsc -p tsconfig.cdk.json",
+    "bundle": "node scripts/package.js",
+    "deploy": "pnpm build && pnpm bundle && cdk deploy",
+    "synth": "pnpm build && pnpm bundle && cdk synth",
+    "package": "pnpm build && pnpm bundle"
+  },
+  "keywords": [
+    "og:image",
+    "opengraph",
+    "lambda",
+    "screenshot",
+    "puppeteer",
+    "aws"
+  ],
+  "author": "Ryan Williams",
+  "license": "MIT",
+  "dependencies": {
+    "@sparticuz/chromium": "^131.0.0",
+    "puppeteer-core": "^23.0.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@types/node": "^22.0.0",
+    "aws-cdk": "^2.0.0",
+    "aws-cdk-lib": "^2.0.0",
+    "constructs": "^10.0.0",
+    "esbuild": "^0.24.0",
+    "puppeteer": "^24.31.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
