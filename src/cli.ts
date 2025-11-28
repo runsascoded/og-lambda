@@ -70,8 +70,8 @@ Commands:
   deploy     Deploy the Lambda stack
   destroy    Destroy the Lambda stack
   invoke     Manually invoke the Lambda
-  logs       Tail Lambda logs
-  status     Show Lambda status
+  logs       Show recent logs (use -f to tail)
+  status     Show Lambda status and next run time
   synth      Synthesize CloudFormation template
 
 Config File:
@@ -232,17 +232,44 @@ function invoke() {
   }
 }
 
-function logs() {
+function logs(args: string[]) {
+  // Handle --help
+  if (args.includes('-h') || args.includes('--help')) {
+    console.log(`
+og-lambda logs - View Lambda logs
+
+Usage: og-lambda logs [options]
+
+Options:
+  -f, --follow    Tail logs continuously (default: show recent logs)
+  -h, --help      Show this help
+`)
+    return
+  }
+
   const stackName = getStackName()
   const logGroup = `/aws/lambda/${stackName}`
-  console.log(`Tailing logs: ${logGroup}`)
+  const follow = args.includes('-f') || args.includes('--follow')
 
-  const result = spawnSync('aws', [
-    'logs', 'tail', logGroup, '--follow',
-  ], {
-    stdio: 'inherit',
-  })
-  process.exit(result.status ?? 1)
+  if (follow) {
+    console.log(`Tailing logs: ${logGroup}`)
+    const result = spawnSync('aws', [
+      'logs', 'tail', logGroup, '--follow',
+    ], {
+      stdio: 'inherit',
+    })
+    process.exit(result.status ?? 1)
+  } else {
+    console.log(`Recent logs: ${logGroup}\n`)
+    const result = spawnSync('aws', [
+      'logs', 'tail', logGroup, '--since', '1h',
+    ], {
+      stdio: 'inherit',
+    })
+    if (result.status !== 0) {
+      process.exit(result.status ?? 1)
+    }
+  }
 }
 
 function showConfig() {
@@ -380,7 +407,7 @@ switch (command) {
     invoke()
     break
   case 'logs':
-    logs()
+    logs(process.argv.slice(3))
     break
   case 'status':
     status()
