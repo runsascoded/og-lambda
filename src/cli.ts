@@ -316,7 +316,22 @@ function showConfig() {
   }
 }
 
-function status() {
+function status(args: string[]) {
+  if (args.includes('-h') || args.includes('--help')) {
+    console.log(`
+og-lambda status - Show Lambda status and next scheduled run
+
+Usage: og-lambda status
+
+Shows:
+  - Config file location (if found)
+  - Lambda function state, memory, timeout
+  - Schedule rule and expression
+  - Last run time and next scheduled run
+`)
+    return
+  }
+
   if (configPath) {
     console.log(`Config: ${configPath}`)
   }
@@ -412,7 +427,7 @@ switch (command) {
     logs(process.argv.slice(3))
     break
   case 'status':
-    status()
+    status(process.argv.slice(3))
     break
   case 'synth':
     synth()
