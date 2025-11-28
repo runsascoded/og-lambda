@@ -1,7 +1,5 @@
 name: Build dist branch
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       source_ref:
