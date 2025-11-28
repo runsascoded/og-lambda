@@ -401,9 +401,8 @@ Shows:
     const nextRun = new Date(timestamp + scheduleMinutes * 60000)
     const untilNext = Math.round((nextRun.getTime() - now.getTime()) / 60000)
 
-    console.log('Last Run:')
-    console.log(`  ${lastRun.toISOString()} (${ago} min ago)`)
-    console.log(`  Next: ${nextRun.toISOString()} (in ${untilNext} min)\n`)
+    console.log(`Last Run: ${lastRun.toISOString()} (${ago} min ago)`)
+    console.log(`Next Run: ${nextRun.toISOString()} (in ${untilNext} min)\n`)
   }
 }
 
