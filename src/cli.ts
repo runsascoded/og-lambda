@@ -326,18 +326,40 @@ function status() {
     console.log(ruleResult.stdout)
   }
 
-  // Get last invocation
+  // Get last invocation time
   const logsResult = spawnSync('aws', [
     'logs', 'filter-log-events',
     '--log-group-name', `/aws/lambda/${stackName}`,
     '--limit', '1',
-    '--query', 'events[0].{timestamp:timestamp,message:message}',
-    '--output', 'table',
+    '--query', 'events[0].timestamp',
+    '--output', 'text',
   ], { encoding: 'utf-8' })
 
-  if (logsResult.status === 0 && logsResult.stdout.trim()) {
-    console.log('Last Log Entry:')
-    console.log(logsResult.stdout)
+  if (logsResult.status === 0 && logsResult.stdout.trim() && logsResult.stdout.trim() !== 'None') {
+    const timestamp = parseInt(logsResult.stdout.trim(), 10)
+    const lastRun = new Date(timestamp)
+    const now = new Date()
+    const ago = Math.round((now.getTime() - timestamp) / 60000) // minutes ago
+
+    // Parse schedule rate from rule output
+    let scheduleMinutes = 60 // default
+    if (ruleResult.status === 0) {
+      const rateMatch = ruleResult.stdout.match(/rate\((\d+)\s*(minute|hour|day)/i)
+      if (rateMatch) {
+        const value = parseInt(rateMatch[1], 10)
+        const unit = rateMatch[2].toLowerCase()
+        if (unit === 'hour') scheduleMinutes = value * 60
+        else if (unit === 'day') scheduleMinutes = value * 1440
+        else scheduleMinutes = value
+      }
+    }
+
+    const nextRun = new Date(timestamp + scheduleMinutes * 60000)
+    const untilNext = Math.round((nextRun.getTime() - now.getTime()) / 60000)
+
+    console.log('Last Run:')
+    console.log(`  ${lastRun.toISOString()} (${ago} min ago)`)
+    console.log(`  Next: ${nextRun.toISOString()} (in ${untilNext} min)\n`)
   }
 }
 
