@@ -353,12 +353,14 @@ function status() {
     console.log(ruleResult.stdout)
   }
 
-  // Get last invocation time
+  // Get last invocation time from most recent log stream
   const logsResult = spawnSync('aws', [
-    'logs', 'filter-log-events',
+    'logs', 'describe-log-streams',
     '--log-group-name', `/aws/lambda/${stackName}`,
+    '--order-by', 'LastEventTime',
+    '--descending',
     '--limit', '1',
-    '--query', 'events[0].timestamp',
+    '--query', 'logStreams[0].lastEventTimestamp',
     '--output', 'text',
   ], { encoding: 'utf-8' })
 
